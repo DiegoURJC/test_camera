@@ -4,8 +4,8 @@
 const std::string SimpleSubCamera::RGB_WINDOW = "RGB";
 const std::string SimpleSubCamera::IR_WINDOW = "IR";
 const std::string SimpleSubCamera::NDVI_WINDOW = "NDVI";
-const int32_t SimpleSubCamera::MAX_FEATURES = 5000;
-const float SimpleSubCamera::GOOD_MATCH_PERCENT = 0.15f;
+const int32_t SimpleSubCamera::MAX_FEATURES = 7000;
+const float SimpleSubCamera::GOOD_MATCH_PERCENT = 0.10f;
 
 
 
@@ -57,6 +57,36 @@ void SimpleSubCamera::applyNDVI(cv::Mat &rgb_im, cv::Mat &ir_im, cv::Mat &ndvi_i
         ndvi_channels[0].at<uchar>(i,j) = 0;
         ndvi_channels[1].at<uchar>(i, j) = 128;
         ndvi_channels[2].at<uchar>(i, j) = 0;
+      }
+    }
+  }
+
+  cv::merge(ndvi_channels, ndvi_im);
+}
+
+void SimpleSubCamera::applyNDVIGrayScale(cv::Mat &rgb_im, cv::Mat &ir_im, cv::Mat &ndvi_im)
+{
+  std::vector<cv::Mat> rgb_channels;
+  std::vector<cv::Mat> ndvi_channels;
+
+  cv::split(rgb_im, rgb_channels);
+  cv::split(ndvi_im, ndvi_channels);
+
+  double NIR, RED, NDVI;
+
+  for(int i = 0; i < rgb_im.rows; ++i){
+    for(int j = 0; j < rgb_im.cols; ++j){
+      NIR = ir_im.at<uchar>(i, j);
+      RED = rgb_channels[2].at<uchar>(i, j);
+
+      NDVI = (NIR - RED) / (NIR + RED);
+
+      if(NDVI <= 0)
+      {
+        ndvi_channels[0].at<uchar>(i,j) = 0;
+      }
+      else{
+        ndvi_channels[0].at<uchar>(i,j) = NDVI * 255;
       }
     }
   }
@@ -127,23 +157,28 @@ void SimpleSubCamera::generateNDVIimage()
   cv::Mat ir_image = m_irImagePtr->image;
   cv::Mat ir_registered;
 
+  m_calculating = true;
 
   alignImages(ir_image, rgb_image, ir_registered);
 
   cv::Mat ndvi_image(rgb_image.size(), CV_8UC3, cv::Scalar(0,0,0));
+  // cv::Mat ndvi_grayscale(rgb_image.size(), CV_8UC1, cv::Scalar(0));
 
   applyNDVI(rgb_image, ir_registered, ndvi_image);
+  // applyNDVIGrayScale(rgb_image, ir_registered, ndvi_grayscale);
 
   cv::cvtColor(rgb_image, rgb_image, cv::COLOR_BGR2RGB);
 
   cv::imshow(RGB_WINDOW, rgb_image);
-  cv::imshow(IR_WINDOW, ir_image);
+  cv::imshow(IR_WINDOW, ir_registered);
   cv::imshow(NDVI_WINDOW, ndvi_image);
+  // cv::imshow("NDVI GRAYSCALE", ndvi_grayscale);
 
   cv::waitKey(3);
 
   m_rgbImagePtr = nullptr;
   m_irImagePtr = nullptr;
+  m_calculating = false;
 }
 
 

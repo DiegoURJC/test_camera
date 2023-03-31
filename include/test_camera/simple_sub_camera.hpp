@@ -18,19 +18,21 @@ public:
   SimpleSubCamera()
   : Node("simple_sub_camera"), 
   m_rgbImagePtr(nullptr), 
-  m_irImagePtr(nullptr)
+  m_irImagePtr(nullptr),
+  m_calculating(false)
   {
     m_RGBSubscriber = create_subscription<sensor_msgs::msg::Image>
-    ("/camera/color/image_raw", 30, std::bind(&SimpleSubCamera::rgb_callback, this, _1));
+    ("/camera/color/image_raw", 10, std::bind(&SimpleSubCamera::rgb_callback, this, _1));
 
     m_IRSubscriber = create_subscription<sensor_msgs::msg::Image>
-    ("/camera/infra1/image_rect_raw", 30, std::bind(&SimpleSubCamera::ir_callback, this, _1));
+    ("/camera/infra1/image_rect_raw", 10, std::bind(&SimpleSubCamera::ir_callback, this, _1));
   }
 
   ~SimpleSubCamera();
 
 private:
   void applyNDVI(cv::Mat &rgb_im, cv::Mat &ir_im, cv::Mat &ndvi_im);
+  void applyNDVIGrayScale(cv::Mat &rgb_im, cv::Mat &ir_im, cv::Mat &ndvi_im);
   void alignImages(cv::Mat &ir_image, cv::Mat &rgb_image, cv::Mat &im_registered);
 
 
@@ -38,6 +40,8 @@ private:
 
   inline void ir_callback(const sensor_msgs::msg::Image::SharedPtr msg)
   {
+    RCLCPP_INFO(get_logger(), "IR CALLBACK");
+
     try
     {
       m_irImagePtr = cv_bridge::toCvCopy(msg, msg->encoding);
@@ -47,13 +51,14 @@ private:
       RCLCPP_ERROR(get_logger(), "cv_bridge exception %s", e.what());
     }
 
-    if((m_irImagePtr != nullptr) && (m_rgbImagePtr != nullptr)){
+    if((m_irImagePtr != nullptr) && (m_rgbImagePtr != nullptr) && (m_calculating == false)){
       generateNDVIimage();
     }
   }
 
   inline void rgb_callback(const sensor_msgs::msg::Image::SharedPtr msg)
   {
+    RCLCPP_INFO(get_logger(), "RGB CALLBACK");
     try
     {
       m_rgbImagePtr = cv_bridge::toCvCopy(msg, msg->encoding);
@@ -70,6 +75,7 @@ private:
 
   cv_bridge::CvImagePtr m_rgbImagePtr;
   cv_bridge::CvImagePtr m_irImagePtr;
+  bool m_calculating;
 
   rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr m_RGBSubscriber;
   rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr m_IRSubscriber;
